@@ -1,0 +1,6 @@
+<resources>
+    <string name="app_name">OpenWeather</string>
+    <string name="title_activity_maps">Map</string>
+    <string name="permit_location_rationale">Access to coarse location is required</string>
+    <string name="permit_location_denied">Access to coarse location is denied</string>
+</resources>
