@@ -7,6 +7,6 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     tools:context=".MapsActivity"
-    map:cameraZoom="15"
+    map:cameraZoom="18"
     map:mapType="satellite"
     map:liteMode="true" />

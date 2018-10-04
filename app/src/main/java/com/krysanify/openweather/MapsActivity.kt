@@ -30,8 +30,6 @@ import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
-import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.gms.tasks.OnCompleteListener
 import com.google.android.gms.tasks.OnFailureListener
 import com.google.android.gms.tasks.OnSuccessListener
@@ -42,7 +40,7 @@ import java.lang.System.currentTimeMillis
 import java.util.concurrent.TimeUnit.HOURS
 import java.util.concurrent.TimeUnit.MINUTES
 
-class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
+class MapsActivity : AppCompatActivity(), OnMapReadyCallback, WeatherMap.Callback {
     private val keyLastLocation = "last_location"
     private val keyLastUpdate = "last_update"
     private val keyRequestingUpdate = "requesting_update"
@@ -63,12 +61,8 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
             .build()
     }
 
-    private val settingsClient by lazy {
-        LocationServices.getSettingsClient(this@MapsActivity)
-    }
-
-    private val onCompleteListener = object : OnSuccessListener<LocationSettingsResponse>,
-        OnFailureListener {
+    private val onCompleteListener = object : LocationCallback(),
+        OnSuccessListener<LocationSettingsResponse>, OnFailureListener {
 
         @SuppressLint("MissingPermission")
         override fun onSuccess(response: LocationSettingsResponse?) {
@@ -76,7 +70,12 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 //            val states = response.locationSettingsStates
 //            val locationPresent = states.isLocationPresent
 //            val locationUsable = states.isLocationUsable
-            locationClient.requestLocationUpdates(locationRequest, locationCallback, null)
+            locationClient.requestLocationUpdates(locationRequest, this, null)
+        }
+
+        override fun onLocationResult(result: LocationResult?) {
+            result ?: return
+            showOnMap(result.lastLocation, currentTimeMillis())
         }
 
         override fun onFailure(exception: Exception) {
@@ -90,21 +89,16 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
                 SETTINGS_CHANGE_UNAVAILABLE -> isRequestingLocationUpdates = false
             }
 
-            mapLocation(lastLocation, lastUpdate)
+            showOnMap(lastLocation, lastUpdate)
         }
+    }
+
+    private val settingsClient by lazy {
+        LocationServices.getSettingsClient(this@MapsActivity)
     }
 
     private val locationClient by lazy {
         LocationServices.getFusedLocationProviderClient(this@MapsActivity)
-    }
-
-    private val locationCallback by lazy {
-        object : LocationCallback() {
-            override fun onLocationResult(result: LocationResult?) {
-                result ?: return
-                mapLocation(result.lastLocation, currentTimeMillis())
-            }
-        }
     }
 
     private val locationPermit = arrayOf(ACCESS_COARSE_LOCATION)
@@ -122,7 +116,6 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         setContentView(R.layout.activity_maps)
         findViewById<View>(android.R.id.content).isClickable = false
 
-        @Suppress("CAST_NEVER_SUCCEEDS")
         val mapFragment = supportFragmentManager.findFragmentById(R.id.map) as? SupportMapFragment
         mapFragment?.getMapAsync(this)
     }
@@ -132,8 +125,8 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         savedInstanceState ?: return
         val location = savedInstanceState.getParcelable<Location>(keyLastLocation)
         val timeMillis = savedInstanceState.getLong(keyLastUpdate)
-        isRequestingLocationUpdates = savedInstanceState.getBoolean(keyRequestingUpdate, false)
-        mapLocation(location, timeMillis)
+        isRequestingLocationUpdates = savedInstanceState.getBoolean(keyRequestingUpdate, true)
+        showOnMap(location, timeMillis)
     }
 
     override fun onSaveInstanceState(outState: Bundle?) {
@@ -154,7 +147,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
             requestLocationPermit()
         }
 
-        mapLocation(lastLocation, lastUpdate)
+        showOnMap(lastLocation, lastUpdate)
     }
 
     override fun onPause() {
@@ -164,7 +157,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        val states = LocationSettingsStates.fromIntent(intent)
+        val states = LocationSettingsStates.fromIntent(data)
         // The user was asked to change settings, but chose not to
         if (reqCodeCheckSettings == requestCode && RESULT_CANCELED == resultCode) {
             isRequestingLocationUpdates = false
@@ -212,27 +205,12 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         requestLocationPermit.onClick(view)
     }
 
-    @SuppressLint("MissingPermission")
     override fun onMapReady(map: GoogleMap) {
         googleMap = map
         map.setOnMapClickListener {
             Log.d("onMapReady", "lorem")
         }
-        mapLocation(lastLocation, lastUpdate)
-    }
-
-    private fun mapLocation(location: Location?, timeMillis: Long) {
-        lastLocation = location ?: return
-        lastUpdate = timeMillis
-
-        // Add a marker in last location and move the camera
-        googleMap?.let {
-            val last = LatLng(location.latitude, location.longitude)
-            it.addMarker(MarkerOptions().position(last).title("Last Marker"))
-            it.moveCamera(CameraUpdateFactory.newLatLng(last))
-        }
-
-        WeatherMap.currentByLocation(location)
+        showOnMap(lastLocation, lastUpdate)
     }
 
     private fun startLocationUpdates() {
@@ -245,12 +223,28 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private fun stopLocationUpdates() {
         if (isRequestingLocationUpdates) {
-            locationClient.removeLocationUpdates(locationCallback)
+            locationClient.removeLocationUpdates(onCompleteListener)
                 .addOnCompleteListener(this, onRequestRemoval)
         }
     }
 
     private val onRequestRemoval = OnCompleteListener<Void> {
         isRequestingLocationUpdates = false
+    }
+
+    private fun showOnMap(location: Location?, timeMillis: Long) {
+        lastLocation = location ?: return
+        lastUpdate = timeMillis
+        WeatherMap.currentByLocation(location, this)
+    }
+
+    override fun onCurrentWeather(info: CurrentInfo) {
+        googleMap?.let {
+            val marker = info.toMarker()
+            val last = info.coordinate()
+            val camera = CameraUpdateFactory.newLatLng(last)
+            it.addMarker(marker)
+            it.moveCamera(camera)
+        }
     }
 }
