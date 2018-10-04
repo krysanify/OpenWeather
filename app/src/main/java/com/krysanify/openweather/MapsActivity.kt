@@ -231,6 +231,8 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
             it.addMarker(MarkerOptions().position(last).title("Last Marker"))
             it.moveCamera(CameraUpdateFactory.newLatLng(last))
         }
+
+        WeatherMap.currentByLocation(location)
     }
 
     private fun startLocationUpdates() {
