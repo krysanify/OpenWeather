@@ -118,6 +118,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, WeatherMap.Callbac
 
         val mapFragment = supportFragmentManager.findFragmentById(R.id.map) as? SupportMapFragment
         mapFragment?.getMapAsync(this)
+        WeatherMap.init(this)
     }
 
     override fun onRestoreInstanceState(savedInstanceState: Bundle?) {

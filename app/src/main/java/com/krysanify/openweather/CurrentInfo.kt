@@ -26,6 +26,7 @@ private val icons = mapOf(
 )
 
 private fun String.fromResource() = BitmapDescriptorFactory.fromResource(icons[this]!!)
+private fun Double.toCelsius() = this - 273.15
 
 data class CurrentInfo(
     val coord: LonLat,
@@ -45,7 +46,7 @@ data class CurrentInfo(
     fun coordinate() = LatLng(coord.lat, coord.lon)
     fun toMarker(): MarkerOptions {
         val coordinate = LatLng(coord.lat, coord.lon)
-        val desc = weather[0].description
+        val desc = "${weather[0].description}, ${main.temp.toCelsius()}°C"
         val bmp = weather[0].icon.fromResource()
         return MarkerOptions()
             .position(coordinate)
